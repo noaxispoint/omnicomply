@@ -2,3 +2,14 @@
 /SOC2-HIPAA-Compliance-Checker.tar.gz
 .DS_Store
 */.DS_Store
+
+# C# / .NET
+csharp/**/bin/
+csharp/**/obj/
+csharp/packages/
+csharp/.vs/
+csharp/nuget.exe
+*.user
+*.suo
+*.cache
+*.DotSettings.user

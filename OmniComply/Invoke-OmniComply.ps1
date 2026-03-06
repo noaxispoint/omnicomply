@@ -30,6 +30,12 @@
 .EXAMPLE
     .\Invoke-OmniComply.ps1 -SkipReportGeneration
     Runs checks without generating report files (console output only)
+.EXAMPLE
+    .\Invoke-OmniComply.ps1 -Frameworks SOC2,HIPAA
+    Runs all checks but filters results to only SOC 2/HIPAA-mapped controls
+.EXAMPLE
+    .\Invoke-OmniComply.ps1 -Frameworks GDPR,CCPA -OutputDirectory "C:\Privacy\Reports"
+    Runs checks filtered to GDPR and CCPA frameworks
 #>
 
 #Requires -RunAsAdministrator
@@ -40,7 +46,11 @@ param(
     [string]$OutputDirectory = ".\reports",
 
     [Parameter(Mandatory=$false)]
-    [switch]$SkipReportGeneration
+    [switch]$SkipReportGeneration,
+
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("SOC2","HIPAA","NIST","CIS","ISO","PCI","SOX","GDPR","CCPA")]
+    [string[]]$Frameworks
 )
 
 # Set error action preference
@@ -315,6 +325,42 @@ foreach ($module in $checkModules) {
     } else {
         Write-Host "  [WARN] Module not found: $module" -ForegroundColor Yellow
     }
+}
+
+# Filter by frameworks if specified
+if ($Frameworks -and $Frameworks.Count -gt 0) {
+    Write-Host ""
+    Write-Host "Filtering results for frameworks: $($Frameworks -join ', ')" -ForegroundColor Yellow
+
+    # Map shorthand names to the framework keys used in the Frameworks hashtable
+    $frameworkKeyMap = @{
+        "SOC2"  = "SOC2_HIPAA"
+        "HIPAA" = "SOC2_HIPAA"
+        "NIST"  = "NIST_800_53"
+        "CIS"   = "CIS_Controls_v8"
+        "ISO"   = "ISO_27001"
+        "PCI"   = "PCI_DSS_v4"
+        "SOX"   = "SOX_ITGC"
+        "GDPR"  = "GDPR"
+        "CCPA"  = "CCPA"
+    }
+
+    $matchKeys = $Frameworks | ForEach-Object { $frameworkKeyMap[$_] } | Select-Object -Unique
+
+    $script:ComplianceResults.Checks = @($script:ComplianceResults.Checks | Where-Object {
+        $check = $_
+        $matched = $false
+        foreach ($key in $matchKeys) {
+            if ($check.Frameworks[$key]) {
+                $matched = $true
+                break
+            }
+        }
+        $matched
+    })
+
+    # Recalculate compliance status
+    $script:ComplianceResults.Compliant = ($script:ComplianceResults.Checks | Where-Object { -not $_.Passed }).Count -eq 0
 }
 
 # Generate summary
